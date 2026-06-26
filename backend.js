@@ -1,5 +1,7 @@
 const { WebSocketServer } = require('ws');
 const { exec } = require('child_process');
+const fs = require('fs');    // Module ajouté pour la gestion des fichiers virtuels temporaires
+const path = require('path');  // Module ajouté pour la gestion propre des chemins
 
 // Railway ou un autre hébergeur va injecter la variable process.env.PORT
 const port = process.env.PORT || 8080;
@@ -142,8 +144,8 @@ wss.on('connection', (ws) => {
                             pseudo: clientMeta.pseudo, 
                             color: clientMeta.color, 
                             mouse: data.mouse,
-                            editorPos: data.editorPos, // Ajout de la position dans le code
-                            activeFile: data.activeFile // Ajout du fichier sur lequel la souris se trouve
+                            editorPos: data.editorPos, // Position dans le code
+                            activeFile: data.activeFile // Fichier sur lequel la souris se trouve
                         });
                     }
                     break;
@@ -184,25 +186,66 @@ wss.on('connection', (ws) => {
 
                 case "run-file":
                     if (clientMeta.room && rooms[clientMeta.room]) {
+                        const room = rooms[clientMeta.room];
                         const ext = data.filename.split('.').pop();
-                        let cmd = "";
 
-                        if (ext === "py") cmd = `python "${data.filename}"`;
-                        else if (ext === "js") cmd = `node "${data.filename}"`;
-                        else if (ext === "html" || ext === "htm") {
+                        // 1. On intercepte le texte live envoyé par l'éditeur ou la mémoire cache globale
+                        const fileContent = data.text || room.fileContents[data.filename] || "";
+
+                        if (ext === "html" || ext === "htm") {
                             broadcastToRoom(clientMeta.room, null, { type: "terminal-output", output: "\n[Système] Impossible d'exécuter un fichier HTML dans la console.\n" });
                             break;
-                        } else {
-                            cmd = `echo Extension .${ext} non configurée pour l'exécution directe.`;
+                        } else if (ext !== "py" && ext !== "js") {
+                            broadcastToRoom(clientMeta.room, null, { 
+                                type: "terminal-output", 
+                                output: `\n[Système] L'extension .${ext} n'est pas configurée pour l'exécution.\n` 
+                            });
+                            break;
                         }
 
-                        broadcastToRoom(clientMeta.room, null, { type: "terminal-output", output: `\n[Exécution] > ${cmd}\n` });
+                        // 2. Génération du nom de fichier temporaire unique dans le répertoire d'exécution du serveur
+                        const tempFilename = `temp_${clientMeta.room}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
+                        const tempPath = path.join(process.cwd(), tempFilename);
 
-                        exec(cmd, (error, stdout, stderr) => {
-                            const output = stdout || stderr || (error ? error.message : "Fin de l'exécution.");
-                            broadcastToRoom(clientMeta.room, null, {
-                                type: "terminal-output",
-                                output: `${output}\n`
+                        // 3. Écriture physique instantanée du code actuel dans le fichier virtuel temporaire
+                        fs.writeFile(tempPath, fileContent, 'utf-8', (err) => {
+                            if (err) {
+                                broadcastToRoom(clientMeta.room, null, { 
+                                    type: "terminal-output", 
+                                    output: `\n[Erreur] Impossible de générer l'exécution : ${err.message}\n` 
+                                });
+                                return;
+                            }
+
+                            // 4. Définition de la commande système
+                            let cmd = "";
+                            if (ext === "py") cmd = `python "${tempFilename}"`;
+                            else if (ext === "js") cmd = `node "${tempFilename}"`;
+
+                            broadcastToRoom(clientMeta.room, null, { type: "terminal-output", output: `\n[Exécution] > Exécution instantanée de ${data.filename}...\n` });
+
+                            // 5. Exécution sécurisée avec injection forcée de l'Unicode (UTF-8) pour Windows et Linux
+                            exec(cmd, { 
+                                cwd: process.cwd(),
+                                env: { 
+                                    ...process.env, 
+                                    PYTHONUTF8: "1",               // Force l'UTF-8 sur Python 3 (Windows)
+                                    PYTHONIOENCODING: "utf-8",     // Sécurité d'encodage supplémentaire
+                                    LANG: "fr_FR.UTF-8",           // Force l'UTF-8 sur l'environnement Linux
+                                    LC_ALL: "fr_FR.UTF-8"          // Application globale des locales Linux
+                                } 
+                            }, (error, stdout, stderr) => {
+                                const output = stdout || stderr || (error ? error.message : "Fin de l'exécution.");
+                                
+                                broadcastToRoom(clientMeta.room, null, {
+                                    type: "terminal-output",
+                                    output: `${output}\n`
+                                });
+
+                                // 6. Nettoyage : Suppression immédiate du fichier temporaire du disque
+                                fs.unlink(tempPath, (unlinkErr) => {
+                                    if (unlinkErr) console.error(`[Erreur Nettoyage] Impossible de supprimer ${tempFilename}`, unlinkErr);
+                                });
                             });
                         });
                     }
