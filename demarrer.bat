@@ -23,6 +23,7 @@ if exist tunnel.txt (
 )
 
 echo ===================================================
+:: Nettoyage et lancement si l'URL existe
 if defined URL (
     set "CLEAN_URL=!URL:https://=!"
     set "CLEAN_URL=!CLEAN_URL:http://=!"
@@ -34,17 +35,17 @@ if defined URL (
     echo.
     echo ===================================================
     echo Ouverture automatique de ton IDE...
-    start index.html?tunnel=!CLEAN_URL!
+    
+    :: CORRECTION ICI : On utilise explorer pour forcer Windows à ouvrir le fichier local correctement avec ses paramètres
+    start explorer.exe "index.html?tunnel=!CLEAN_URL!"
 ) else (
     echo [ATTENTION] Le lien automatique n'a pas pu etre injecte.
-    echo Verifie le fichier "tunnel.txt" qui vient d'etre cree, 
-    echo il contient peut-etre le lien genere.
+    echo Verifie le fichier "tunnel.txt" qui vient d'etre cree.
     echo ===================================================
     echo Ouverture de l'IDE...
-    start index.html
+    start explorer.exe "index.html"
 )
 
-:: On laisse la fenetre ouverte pour que tu puisses copier le lien pour ton pote
 echo.
 echo Laisse cette fenetre ouverte pendant votre session de code.
 pause
