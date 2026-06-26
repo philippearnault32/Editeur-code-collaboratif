@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>IDE Collaboratif Synchrone Pro</title>
+    <style>
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; background: #1e1e1e; color: #fff; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        #top-bar { height: 45px; background: #2d2d2d; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-bottom: 1px solid #3c3c3c; z-index: 100; }
+        #main-container { display: flex; flex: 1; height: calc(100vh - 45px); position: relative; }
+        
+        /* Explorateur & Recherche */
+        #sidebar { width: 280px; background: #252526; border-right: 1px solid #3c3c3c; display: flex; flex-direction: column; overflow: hidden; z-index: 50; }
+        .sidebar-header { padding: 10px; font-weight: bold; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #858585; display: flex; justify-content: space-between; align-items: center; }
+        .search-box-container { padding: 0 10px 10px 10px; border-bottom: 1px solid #3c3c3c; }
+        .search-input { width: 100%; background: #3c3c3c; border: 1px solid #6b6b6b; color: white; padding: 6px; border-radius: 4px; box-sizing: border-box; font-size: 12px; }
+        .search-input:focus { border-color: #007acc; outline: none; }
+
+        /* Arborescence Graphique */
+        .tree-root { list-style: none; padding-left: 10px; margin: 0; overflow-y: auto; flex: 1; padding-top: 10px; }
+        .tree-folder { cursor: pointer; padding: 4px 5px; display: flex; align-items: center; font-size: 13px; font-weight: bold; color: #e8a838; user-select: none; justify-content: space-between; }
+        .tree-folder:hover { background: #2a2d2e; }
+        .tree-file { cursor: pointer; padding: 4px 20px; font-size: 13px; color: #ccc; display: flex; justify-content: space-between; align-items: center; }
+        .tree-file:hover { background: #2a2d2e; color: #fff; }
+        .tree-file.active { background: #37373d; color: #007acc; font-weight: bold; border-left: 2px solid #007acc; }
+        .tree-file.search-match { background: #433519; border-left: 2px solid #e8a838; }
+        .folder-children { list-style: none; padding-left: 15px; margin: 0; }
+        .folder-children.collapsed { display: none; }
+        
+        /* Zone Éditeur */
+        #editor-container { flex: 1; position: relative; height: 100%; width: 100%; }
+        .btn-menu { background: #0e639c; color: white; border: none; padding: 6px 12px; border-radius: 3px; cursor: pointer; font-size: 13px; font-weight: bold; }
+        .btn-menu:hover { background: #1177bb; }
+        .btn-action { background: #333; border: 1px solid #555; color: #fff; cursor: pointer; font-size: 11px; padding: 2px 6px; border-radius: 3px; }
+        .btn-action:hover { background: #444; }
+        #status { font-size: 12px; color: #fff; background: #2d2d2d; padding: 4px 10px; border-radius: 4px; border: 1px solid #555; }
+        #session-badge { background: #cf6a15; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; display: none; font-weight: bold; }
+
+        /* Curseurs Texte Distants */
+        .remote-cursor { width: 2px !important; background: currentColor; }
+        .remote-cursor-tooltip {
+            position: absolute; color: white; font-size: 10px; font-weight: bold; padding: 1px 5px;
+            border-radius: 3px 3px 3px 0px; background: currentColor; white-space: nowrap; top: -17px; left: 2px;
+            pointer-events: none; z-index: 10;
+        }
+
+        /* Souris volantes */
+        .fake-mouse-pointer {
+            position: absolute; width: 12px; height: 12px;
+            border-left: 3px solid currentColor; border-top: 3px solid currentColor;
+            transform: rotate(-25deg); pointer-events: none; z-index: 9999; transition: top 0.05s, left 0.05s;
+        }
+        .fake-mouse-label {
+            position: absolute; top: 15px; left: 5px; color: white; font-size: 10px;
+            font-weight: bold; padding: 1px 4px; border-radius: 3px; background: currentColor; white-space: nowrap;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs/loader.min.js"></script>
+</head>
+<body>
+
+    <div id="top-bar">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <button class="btn-menu" id="btn-import" onclick="openLocalFolder()">📁 Importer Projet</button>
+            <button class="btn-menu" style="background: #28a745;" id="btn-create" onclick="createSession()">🔗 Créer Session</button>
+            <button class="btn-menu" style="background: #6f42c1;" id="btn-join" onclick="joinSession()">🤝 Rejoindre via Code</button>
+            <span id="session-badge">SESSION : OFF</span>
+            <strong id="current-file-title" style="color: #007acc; margin-left: 10px;">Aucun fichier</strong>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <span id="user-display" style="font-weight: bold; font-size: 13px; color: #4fc1ff;">Pseudo : ...</span>
+            <span id="status">Déconnecté</span>
+        </div>
+    </div>
+
+    <div id="main-container" onmousemove="trackAndSyncMouse(event)">
+        <div id="sidebar">
+            <div class="sidebar-header"><span>Explorateur</span></div>
+            <div class="search-box-container">
+                <input type="text" id="search-input" class="search-input" placeholder="Rechercher fichier ou texte..." oninput="triggerSearch()">
+            </div>
+            <ul id="file-tree" class="tree-root"></ul>
+        </div>
+        <div id="editor-container"></div>
+    </div>
+
+    <div id="mouse-layer" style="position: absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:999;"></div>
+
+    <script>
+        let editor;
+        let ws;
+        let myId;
+        let myPseudo = "Anonyme";
+        let remoteDecorations = [];
+        let isUpdatingFromServer = false;
+        
+        let rootHandle = null;
+        let fileHandlesRegistry = {}; 
+        let folderHandlesRegistry = {}; 
+        let activeFileRelativePath = null;
+        let isOwner = false;
+
+        const langExtensions = {
+            'python': 'py', 'c': 'c', 'cpp': 'cpp', 'java': 'java',
+            'html': 'html', 'css': 'css', 'xml': 'xml', 'javascript': 'js',
+            'json': 'json'
+        };
+
+        require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs' }});
+        
+        window.MonacoEnvironment = {
+            getWorkerUrl: function () {
+                return `data:text/javascript;charset=utf-8,${encodeURIComponent(`
+                    self.importScripts('https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs/base/worker/workerMain.min.js');
+                `)}`;
+            }
+        };
+
+        require(['vs/editor/editor.main'], function() {
+            editor = monaco.editor.create(document.getElementById('editor-container'), {
+                value: "// Prêt. Importez un projet ou rejoignez une session.\n",
+                language: 'plaintext',
+                theme: 'vs-dark',
+                automaticLayout: true,
+                fontSize: 14
+            });
+            
+            myPseudo = prompt("Choisissez votre pseudo :") || "Développeur";
+            document.getElementById('user-display').innerText = `Pseudo : ${myPseudo}`;
+
+            setupWebSocket();
+            setupEditorListeners();
+        });
+
+        function setupWebSocket() {
+            ws = new WebSocket('wss://editeur-code-collaboratif-production.up.railway.app');
+            ws.onopen = () => { 
+                document.getElementById('status').innerText = "Serveur Connected"; 
+                ws.send(JSON.stringify({ type: "set-pseudo", pseudo: myPseudo }));
+            };
+            ws.onclose = () => { document.getElementById('status').innerText = "Serveur Déconnecté"; };
+
+            ws.onmessage = async (event) => {
+                const data = JSON.parse(event.data);
+
+                if (data.type === "welcome") { 
+                    myId = data.id; 
+                }
+                else if (data.type === "room-created") {
+                    displaySessionBadge(data.roomCode);
+                    isOwner = true;
+                    syncTreeStructureToServer();
+                }
+                else if (data.type === "room-joined") {
+                    displaySessionBadge(data.roomCode);
+                    isOwner = false;
+                    document.getElementById('btn-import').style.display = "none";
+                    document.getElementById('btn-create').style.display = "none";
+                    renderTreeFromDataArray(data.treeHTML);
+                }
+                else if (data.type === "tree-updated" && !isOwner) {
+                    renderTreeFromDataArray(data.treeHTML);
+                }
+                else if (data.type === "cmd-create-file" && isOwner) {
+                    await createFileLocally(data.parentPath, data.filename);
+                }
+                else if (data.type === "request-file-content" && isOwner) {
+                    const handle = fileHandlesRegistry[data.filename];
+                    if (handle) {
+                        const file = await handle.getFile();
+                        const text = await file.text();
+                        ws.send(JSON.stringify({ 
+                            type: "serve-file-content", 
+                            filename: data.filename, 
+                            forcedLang: data.forcedLang, 
+                            text: text 
+                        }));
+                    }
+                }
+                else if (data.type === "file-content") {
+                    activeFileRelativePath = data.filename;
+                    document.getElementById('current-file-title').innerText = data.filename;
+                    applyActiveStyleToTree(data.filename);
+
+                    isUpdatingFromServer = true;
+                    const model = editor.getModel();
+                    if (model) {
+                        model.setValue(data.text);
+                        monaco.editor.setModelLanguage(model, data.forcedLang || 'plaintext');
+                    }
+                    isUpdatingFromServer = false;
+                }
+                else if (data.type === "edit" && data.filename === activeFileRelativePath) {
+                    isUpdatingFromServer = true;
+                    const model = editor.getModel();
+                    if (model && model.getValue() !== data.text) {
+                        const currentPosition = editor.getPosition();
+                        model.setValue(data.text);
+                        if (currentPosition) editor.setPosition(currentPosition);
+                    }
+                    isUpdatingFromServer = false;
+                    if (isOwner) await saveToLocalDisk(data.filename, data.text);
+                }
+                else if (data.type === "presence") { 
+                    updateRemoteCursors(data.clients); 
+                }
+                else if (data.type === "mouse-sync") {
+                    updateRemoteMousePointer(data);
+                }
+                else if (data.type === "mouse-leave") {
+                    const pointer = document.getElementById(`mouse-${data.clientId}`);
+                    if (pointer) pointer.remove();
+                }
+                else if (data.type === "error") { alert(data.message); }
+            };
+        }
+
+        async function openLocalFolder() {
+            try {
+                rootHandle = await window.showDirectoryPicker();
+                fileHandlesRegistry = {};
+                folderHandlesRegistry = {};
+                isOwner = true; // L'utilisateur qui importe devient le gestionnaire local des fichiers
+                await refreshTreeUI();
+            } catch (err) { console.error(err); }
+        }
+
+        async function refreshTreeUI() {
+            if (!rootHandle) return;
+            const treeRootElement = document.getElementById('file-tree');
+            treeRootElement.innerHTML = "";
+            await buildTreeRecursive(rootHandle, treeRootElement, "");
+            if (ws && ws.readyState === 1 && isOwner && document.getElementById('session-badge').style.display === "inline-block") {
+                syncTreeStructureToServer();
+            }
+        }
+
+        async function buildTreeRecursive(folderHandle, parentElement, relativePath) {
+            const entries = [];
+            for await (const entry of folderHandle.values()) { entries.push(entry); }
+            entries.sort((a, b) => b.kind.localeCompare(a.kind));
+
+            for (const entry of entries) {
+                const currentRelativePath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
+
+                if (entry.kind === 'directory') {
+                    folderHandlesRegistry[currentRelativePath] = entry;
+
+                    const li = document.createElement('li');
+                    const folderDiv = document.createElement('div');
+                    folderDiv.className = "tree-folder";
+                    folderDiv.dataset.path = currentRelativePath;
+                    
+                    const textSpan = document.createElement('span');
+                    textSpan.innerText = `📁 ${entry.name}`;
+                    folderDiv.appendChild(textSpan);
+                    
+                    const btnAdd = document.createElement('button');
+                    btnAdd.innerText = "+ Fichier";
+                    btnAdd.className = "btn-action";
+                    btnAdd.onclick = (e) => {
+                        e.stopPropagation();
+                        askCreateFile(currentRelativePath);
+                    };
+                    folderDiv.appendChild(btnAdd);
+                    li.appendChild(folderDiv);
+
+                    const childrenUl = document.createElement('ul');
+                    childrenUl.className = "folder-children collapsed"; 
+                    li.appendChild(childrenUl);
+
+                    folderDiv.onclick = (e) => { 
+                        if(e.target !== btnAdd) {
+                            childrenUl.classList.toggle('collapsed'); 
+                            if(childrenUl.classList.contains('collapsed')) {
+                                textSpan.innerText = textSpan.innerText.replace('📂', '📁');
+                            } else {
+                                textSpan.innerText = textSpan.innerText.replace('📁', '📂');
+                            }
+                        }
+                    };
+                    parentElement.appendChild(li);
+
+                    await buildTreeRecursive(entry, childrenUl, currentRelativePath);
+                } 
+                else if (entry.kind === 'file') {
+                    fileHandlesRegistry[currentRelativePath] = entry;
+
+                    const li = document.createElement('li');
+                    li.className = "tree-file";
+                    li.dataset.path = currentRelativePath;
+                    li.innerText = `📄 ${entry.name}`;
+                    
+                    li.onclick = (e) => {
+                        e.stopPropagation();
+                        handleFileSelection(currentRelativePath);
+                    };
+                    parentElement.appendChild(li);
+                }
+            }
+        }
+
+        async function handleFileSelection(relativePath) {
+            const choices = Object.keys(langExtensions).join(', ');
+            const defLang = relativePath.split('.').pop();
+            let matched = "plaintext";
+            Object.keys(langExtensions).forEach(k => { if(langExtensions[k] === defLang) matched = k; });
+
+            const chosenLang = prompt(`Spécifiez le langage de ce fichier pour l'éditeur Monaco :\n(${choices})`, matched);
+            const language = (!chosenLang || !langExtensions[chosenLang.toLowerCase().trim()]) ? "plaintext" : chosenLang.toLowerCase().trim();
+            
+            await requestOpenFile(relativePath, language);
+        }
+
+        async function requestOpenFile(relativePath, language) {
+            activeFileRelativePath = relativePath;
+            document.getElementById('current-file-title').innerText = relativePath;
+            applyActiveStyleToTree(relativePath);
+
+            const badge = document.getElementById('session-badge');
+            const hasActiveRoom = badge.style.display === "inline-block";
+
+            // S'il y a une room active, on passe par le protocole synchrone du serveur
+            if (hasActiveRoom && ws && ws.readyState === 1) {
+                ws.send(JSON.stringify({ 
+                    type: "open-file", 
+                    filename: relativePath, 
+                    forcedLang: language 
+                }));
+            } else {
+                // Mode hors-ligne / Pré-session : On lit et injecte directement le fichier localement
+                const handle = fileHandlesRegistry[relativePath];
+                if (handle) {
+                    try {
+                        const file = await handle.getFile();
+                        const text = await file.text();
+                        isUpdatingFromServer = true;
+                        const model = editor.getModel();
+                        if (model) {
+                            model.setValue(text);
+                            monaco.editor.setModelLanguage(model, language);
+                        }
+                        isUpdatingFromServer = false;
+                    } catch(e) { console.error("Erreur de lecture locale :", e); }
+                }
+            }
+        }
+
+        function setupEditorListeners() {
+            editor.onDidChangeModelContent(() => {
+                if (isUpdatingFromServer || !activeFileRelativePath) return;
+                const text = editor.getValue();
+                
+                if (ws && ws.readyState === 1 && document.getElementById('session-badge').style.display === "inline-block") {
+                    ws.send(JSON.stringify({ type: "edit", filename: activeFileRelativePath, text: text }));
+                }
+                if (isOwner) saveToLocalDisk(activeFileRelativePath, text);
+            });
+
+            editor.onDidChangeCursorPosition((e) => {
+                if (!activeFileRelativePath || isUpdatingFromServer) return;
+                if (ws && ws.readyState === 1 && document.getElementById('session-badge').style.display === "inline-block") {
+                    ws.send(JSON.stringify({
+                        type: "cursor",
+                        position: { line: e.position.lineNumber, column: e.position.column }
+                    }));
+                }
+            });
+        }
+
+        function trackAndSyncMouse(event) {
+            if (ws && ws.readyState === 1 && document.getElementById('session-badge').style.display === "inline-block") {
+                ws.send(JSON.stringify({
+                    type: "mouse-move",
+                    mouse: { x: event.clientX, y: event.clientY }
+                }));
+            }
+        }
+
+        function updateRemoteMousePointer(data) {
+            const layer = document.getElementById('mouse-layer');
+            let pointer = document.getElementById(`mouse-${data.clientId}`);
+
+            if (!pointer) {
+                pointer = document.createElement('div');
+                pointer.id = `mouse-${data.clientId}`;
+                pointer.className = "fake-mouse-pointer";
+                pointer.style.color = data.color;
+
+                const label = document.createElement('div');
+                label.className = "fake-mouse-label";
+                label.style.backgroundColor = data.color;
+                label.innerText = data.pseudo; 
+                pointer.appendChild(label);
+
+                layer.appendChild(pointer);
+            }
+
+            pointer.style.left = `${data.mouse.x}px`;
+            pointer.style.top = `${data.mouse.y}px`;
+        }
+
+        function syncTreeStructureToServer() {
+            const treeRoot = document.getElementById('file-tree');
+            const structure = serializeTreeStructure(treeRoot);
+            ws.send(JSON.stringify({ type: "sync-tree", treeHTML: structure }));
+        }
+
+        function serializeTreeStructure(element) {
+            let nodes = [];
+            element.childNodes.forEach(child => {
+                if (child.nodeName === "LI") {
+                    let nodeData = { type: "", name: "", path: "", children: [] };
+                    const folderEl = child.querySelector('.tree-folder');
+
+                    if (folderEl) {
+                        nodeData.type = "folder";
+                        nodeData.name = folderEl.querySelector('span').innerText.trim();
+                        nodeData.path = folderEl.dataset.path;
+                        const subUl = child.querySelector('.folder-children');
+                        if (subUl) nodeData.children = serializeTreeStructure(subUl);
+                        nodes.push(nodeData); 
+                    } else if (child.classList.contains('tree-file')) { // CORRECTION ICI : Analyse de la classe de l'élément parent LI
+                        nodeData.type = "file";
+                        nodeData.name = child.innerText.trim();
+                        nodeData.path = child.dataset.path; 
+                        nodes.push(nodeData); 
+                    }
+                }
+            });
+            return nodes;
+        }
+
+        function renderTreeFromDataArray(nodes, parentElement = null) {
+            if (!parentElement) {
+                parentElement = document.getElementById('file-tree');
+                parentElement.innerHTML = "";
+            }
+            nodes.forEach(node => {
+                const li = document.createElement('li');
+                if (node.type === "folder") {
+                    const div = document.createElement('div');
+                    div.className = "tree-folder";
+                    div.dataset.path = node.path;
+                    
+                    const textSpan = document.createElement('span');
+                    textSpan.innerText = node.name;
+                    div.appendChild(textSpan);
+
+                    const btnAdd = document.createElement('button');
+                    btnAdd.innerText = "+ Fichier";
+                    btnAdd.className = "btn-action";
+                    btnAdd.onclick = (e) => {
+                        e.stopPropagation();
+                        askCreateFile(node.path);
+                    };
+                    div.appendChild(btnAdd);
+                    li.appendChild(div);
+
+                    const ul = document.createElement('ul');
+                    ul.className = "folder-children collapsed";
+                    div.onclick = (e) => { 
+                        if(e.target !== btnAdd) {
+                            ul.classList.toggle('collapsed'); 
+                            if(ul.classList.contains('collapsed')) {
+                                textSpan.innerText = textSpan.innerText.replace('📂', '📁');
+                            } else {
+                                textSpan.innerText = textSpan.innerText.replace('📁', '📂');
+                            }
+                        }
+                    };
+                    li.appendChild(ul);
+                    parentElement.appendChild(li);
+
+                    renderTreeFromDataArray(node.children, ul);
+                } else if (node.type === "file") {
+                    li.className = "tree-file";
+                    li.innerText = node.name;
+                    li.dataset.path = node.path;
+                    
+                    li.onclick = (e) => {
+                        e.stopPropagation();
+                        handleFileSelection(node.path);
+                    };
+                    parentElement.appendChild(li);
+                }
+            });
+        }
+
+        function applyActiveStyleToTree(filename) {
+            document.querySelectorAll('.tree-file').forEach(el => {
+                if (el.dataset.path === filename) el.classList.add('active');
+                else el.classList.remove('active');
+            });
+        }
+
+        function createSession() {
+            if (!rootHandle) return alert("Veuillez d'abord importer un projet !");
+            ws.send(JSON.stringify({ type: "create-room" }));
+        }
+
+        function joinSession() {
+            const code = prompt("Entrez le code de session :");
+            if (code) ws.send(JSON.stringify({ type: "join-room", roomCode: code }));
+        }
+
+        function displaySessionBadge(code) {
+            const badge = document.getElementById('session-badge');
+            badge.innerText = `CODE : ${code}`;
+            badge.style.display = "inline-block";
+            document.getElementById('btn-join').style.display = "none";
+        }
+
+        function askCreateFile(parentPath) {
+            const nameWithoutExt = prompt("Nom du nouveau fichier (sans extension) :");
+            if (!nameWithoutExt) return;
+            const choices = Object.keys(langExtensions).join(', ');
+            const chosenLang = prompt(`Choisissez le langage :\n(${choices})`).toLowerCase().trim();
+            
+            if (!langExtensions[chosenLang]) return alert("Langage non supporté !");
+            const fullFilename = `${nameWithoutExt}.${langExtensions[chosenLang]}`;
+
+            const badge = document.getElementById('session-badge');
+            const hasActiveRoom = badge.style.display === "inline-block";
+
+            if (hasActiveRoom && ws && ws.readyState === 1) {
+                ws.send(JSON.stringify({
+                    type: "request-create-file",
+                    parentPath: parentPath,
+                    filename: fullFilename
+                }));
+            } else {
+                // Création locale immédiate si hors-ligne
+                createFileLocally(parentPath, fullFilename);
+            }
+        }
+
+        async function createFileLocally(parentPath, filename) {
+            try {
+                const parentHandle = parentPath === "" ? rootHandle : folderHandlesRegistry[parentPath];
+                if (parentHandle) {
+                    await parentHandle.getFileHandle(filename, { create: true });
+                    await refreshTreeUI();
+                }
+            } catch (e) { console.error("Erreur création fichier physique:", e); }
+        }
+
+        async function saveToLocalDisk(relativePath, content) {
+            try {
+                const handle = fileHandlesRegistry[relativePath];
+                if (handle) {
+                    const writable = await handle.createWritable();
+                    await writable.write(content);
+                    await writable.close();
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        async function triggerSearch() {
+            const query = document.getElementById('search-input').value.toLowerCase().trim();
+            document.querySelectorAll('.tree-file').forEach(el => el.classList.remove('search-match'));
+            if (!query) return;
+
+            document.querySelectorAll('.tree-file').forEach(async el => {
+                const path = el.dataset.path;
+                if (path && path.toLowerCase().includes(query)) {
+                    el.classList.add('search-match');
+                    let parent = el.parentElement;
+                    while (parent && parent.id !== 'file-tree') {
+                        if (parent.classList.contains('folder-children')) parent.classList.remove('collapsed');
+                        parent = parent.parentElement;
+                    }
+                }
+            });
+        }
+
+        function updateRemoteCursors(clientsList) {
+            const newDecorations = [];
+            clientsList.forEach(client => {
+                if (client.id === myId || client.activeFile !== activeFileRelativePath) return;
+                const className = `cursor-${client.id}`;
+                if (!document.getElementById(className)) {
+                    const style = document.createElement('style');
+                    style.id = className;
+                    style.innerHTML = `.${className} { color: ${client.color} !important; }`;
+                    document.head.appendChild(style);
+                }
+                newDecorations.push({
+                    range: new monaco.Range(client.cursor.line, client.cursor.column, client.cursor.line, client.cursor.column),
+                    options: { 
+                        className: `remote-cursor ${className}`, 
+                        beforeContentClassName: `remote-cursor-tooltip ${className}`, 
+                        beforeInjectedText: { text: client.pseudo } 
+                    }
+                });
+            });
+            remoteDecorations = editor.deltaDecorations(remoteDecorations, newDecorations);
+        }
+    </script>
+</body>
+</html>
