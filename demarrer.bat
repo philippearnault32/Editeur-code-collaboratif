@@ -1,53 +1,51 @@
 @echo off
-setlocal enabledelayedexpansion
-title IDE Collaboratif Auto-Pilote
+set PORT=8080
+title IDE Collaboratif - Demarrage
 
-echo [1/3] Demarrage du serveur Node.js en arriere-plan...
-start "Serveur Backend" /min node backend.js
+echo === Lancement du serveur Backend ===
+start /b node backend.js
 
-echo [2/3] Generation du tunnel internet (localtunnel)...
-echo Patientez pendant la creation du lien de partage...
+echo Attente de l'initialisation du serveur (2s)...
+timeout /t 2 /nobreak > nul
 
-:: Le "-y" force le fonctionnement automatique
-start /min cmd /c "npx -y localtunnel --port 8080 > tunnel.txt 2>&1"
+echo === Creation du tunnel public (Localtunnel) ===
+echo Generation de l'URL en cours...
 
-:: Attente de 6 secondes pour laisser localtunnel s'initialiser
-timeout /t 6 /nobreak >nul
+:: Lancement de localtunnel en tâche de fond en redirigeant la sortie vers un fichier temporaire
+start /b "" npx lt --port %PORT% > tunnel.txt 2>&1
 
-:: Extraction de l'URL du fichier tunnel.txt
-set "URL="
-if exist tunnel.txt (
-    for /f "tokens=2 delims= " %%a in ('findstr /i "url" tunnel.txt') do (
-        set "URL=%%a"
+:: Attente de la génération du lien
+timeout /t 3 /nobreak > nul
+
+:: Extraction et nettoyage de l'URL
+set "TUNNEL_URL="
+for /f "tokens=*" %%i in (tunnel.txt) do (
+    echo %%i | findstr "https://" >nul
+    if not errorlevel 1 (
+        set "TUNNEL_URL=%%i"
     )
 )
 
-echo ===================================================
-:: Nettoyage et lancement si l'URL existe
-if defined URL (
-    set "CLEAN_URL=!URL:https://=!"
-    set "CLEAN_URL=!CLEAN_URL:http://=!"
-    
-    echo [3/3] Lien partageable genere avec succes 
-    echo.
-    echo ENVOIE CE LIEN A TON POTE A DISTANCE :
-    echo !URL!
-    echo.
-    echo ===================================================
-    echo Ouverture automatique de ton IDE...
-    
-    :: CORRECTION ICI : On utilise explorer pour forcer Windows à ouvrir le fichier local correctement avec ses paramètres
-    start explorer.exe "index.html?tunnel=!CLEAN_URL!"
-) else (
-    echo [ATTENTION] Le lien automatique n'a pas pu etre injecte.
-    echo Verifie le fichier "tunnel.txt" qui vient d'etre cree.
-    echo ===================================================
-    echo Ouverture de l'IDE...
-    start explorer.exe "index.html"
+if "%TUNNEL_URL%"=="" (
+    echo [Alerte] Impossible de recuperer automatiquement l'URL du tunnel. Checkez le fichier tunnel.txt.
+    goto :end
 )
 
-echo.
-echo Laisse cette fenetre ouverte pendant votre session de code.
-pause
+:: Nettoyage de la phrase "your url is: "
+set "TUNNEL_URL=%TUNNEL_URL:your url is =%"
+set "TUNNEL_URL=%TUNNEL_URL: =%"
+set "TUNNEL_URL=%TUNNEL_URL::=%"
 
+:: Copie magique dans le presse-papiers Windows
+echo | set /p="%TUNNEL_URL%" | clip
+
+echo =======================================================
+echo  🔗 URL : %TUNNEL_URL%
+echo  📋 Le lien a ete COPIE automatiquement ! (Ctrl+V)
+echo =======================================================
+
+:end
+:: Supprime le fichier temporaire
 if exist tunnel.txt del tunnel.txt
+:: Garde la fenêtre ouverte pour lire l'URL
+cmd /k
