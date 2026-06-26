@@ -34,7 +34,16 @@
         }
 
         body { margin: 0; font-family: 'Segoe UI', sans-serif; background: var(--bg-main); color: var(--text-main); display: flex; flex-direction: column; height: 100vh; overflow: hidden; transition: background 0.2s, color 0.2s; }
-        #top-bar { height: 45px; background: var(--bg-topbar); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-bottom: 1px solid var(--border-color); z-index: 100; transition: background 0.2s; }
+        #top-bar { height: 45px; background: var(--bg-topbar); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-bottom: 1px solid var(--border-color); z-index: 100; transition: background 0.2s;
+            <div class="menu-dropdown">
+            <button class="btn" style="background: #3c3c3c;">👁️ Affichage ▼</button>
+            <div class="dropdown-content">
+                <label><input type="checkbox" id="toggle-sidebar" checked onchange="toggleComponent('sidebar')"> Explorateur de fichiers</label>
+                <label><input type="checkbox" id="toggle-terminal" checked onchange="toggleComponent('terminal-section')"> Terminal / Console</label>
+                <label><input type="checkbox" id="toggle-chat" checked onchange="toggleComponent('chat-section')"> Chat en direct</label>
+            </div>
+        </div>
+        }
         #main-container { display: flex; flex: 1; height: calc(100vh - 45px); position: relative; }
         
         /* Explorateur & Recherche */
@@ -133,6 +142,22 @@
         }
         #indicator-up { top: 40px; }
         #indicator-down { bottom: 10px; }
+
+                /* Style pour le Menu Déroulant Affichage */
+        .menu-dropdown { position: relative; display: inline-block; }
+        .dropdown-content {
+            display: none; position: absolute; background-color: #2d2d2d;
+            min-width: 200px; box-shadow: 0px 8px 16px rgba(0,0,0,0.5);
+            padding: 8px; z-index: 200; border: 1px solid #3c3c3c; border-radius: 4px;
+        }
+        .menu-dropdown:hover .dropdown-content { display: block; }
+        .dropdown-content label { display: flex; align-items: center; gap: 8px; padding: 6px; cursor: pointer; font-size: 13px; color: #ccc; }
+        .dropdown-content label:hover { background: #3c3c3c; color: white; }
+
+        /* Bulles de message du Chat */
+        .chat-msg { background: #333; padding: 6px 10px; border-radius: 6px; max-width: 90%; word-break: break-all; }
+        .chat-msg .author { font-weight: bold; font-size: 11px; margin-bottom: 2px; }
+        
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs/loader.min.js"></script>
