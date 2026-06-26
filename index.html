@@ -115,9 +115,21 @@
 
         /* Indicateurs de Position Haut/Bas */
         .pos-indicator {
-            position: absolute; right: 30px; z-index: 200; display: none; padding: 5px 12px; 
-            border-radius: 20px; color: white; font-size: 11px; font-weight: bold; opacity: 0.9;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.5); pointer-events: none; align-items: center; gap: 5px;
+            position: absolute; 
+            right: 90px; /* Changé de 30px à 90px pour éviter la minimap de Monaco */
+            z-index: 9999; /* Augmenté à 9999 pour passer au-dessus de Monaco et des canvas */
+            display: none; 
+            padding: 5px 12px; 
+            border-radius: 20px; 
+            color: white; 
+            font-size: 11px; 
+            font-weight: bold; 
+            opacity: 0.9;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.5); 
+            pointer-events: none; 
+            align-items: center; 
+            gap: 5px;
+        }
         }
         #indicator-up { top: 40px; }
         #indicator-down { bottom: 10px; }
