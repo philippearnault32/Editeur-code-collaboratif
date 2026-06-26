@@ -1,22 +1,26 @@
 @echo off
-:: FORCE Windows à activer les variables dynamiques avec ! (très important)
+:: FORCE Windows à activer les variables dynamiques avec !
 setlocal enabledelayedexpansion
 title IDE Collaboratif Auto-Pilote
 
-echo [1/3] Demarrage du serveur Node.js...
+echo [1/3] Demarrage du serveur Node.js en arriere-plan...
 start "Serveur Backend" /min node backend.js
 
-echo [2/3] Generation du tunnel internet...
-:: On écrit dans tunnel.txt au lieu de log pour éviter les conflits
-start /min cmd /c "npx lt --port 8080 > tunnel.txt"
+echo [2/3] Generation du tunnel internet (localtunnel)...
+echo Patientez pendant la creation du lien de partage...
 
-echo Connexion aux serveurs distants...
-timeout /t 5 /nobreak >nul
+:: Le "-y" force npx à installer localtunnel sans bloquer en arriere-plan
+start /min cmd /c "npx -y localtunnel --port 8080 > tunnel.txt 2>&1"
 
-:: Extraction de l'URL
+:: Attente de 6 secondes pour laisser le temps au tunnel de se créer
+timeout /t 6 /nobreak >nul
+
+:: Extraction de l'URL du fichier tunnel.txt
 set "URL="
-for /f "tokens=2 delims= " %%a in ('findstr "url:" tunnel.txt') do (
-    set "URL=%%a"
+if exist tunnel.txt (
+    for /f "tokens=2 delims= " %%a in ('findstr /i "url" tunnel.txt') do (
+        set "URL=%%a"
+    )
 )
 
 :: Nettoyage et lancement si l'URL existe
@@ -24,17 +28,30 @@ if defined URL (
     set "CLEAN_URL=!URL:https://=!"
     set "CLEAN_URL=!CLEAN_URL:http://=!"
     
-    echo [3/3] Lien genere avec succes : !URL!
+    echo ===================================================
+    echo [3/3] Lien partageable genere avec succes : !URL!
     echo Ouverture automatique de l'IDE...
+    echo ===================================================
     
-    :: On lance avec l'URL injectée
+    :: Lance l'index.html avec le paramètre tunnel
     start index.html?tunnel=!CLEAN_URL!
 ) else (
-    echo [ERREUR] Impossible de recuperer l'adresse du tunnel.
-    echo Ouverture en local simple...
+    echo ===================================================
+    echo [ATTENTION] Impossible de generer le tunnel automatique.
+    echo Pas de panique ! Vous pouvez lancer la session manuellement.
+    echo.
+    echo 1. Copiez ce lien et ouvrez-le dans votre navigateur :
+    echo    http://localhost:8080
+    echo.
+    echo 2. Partagez ce lien a votre pote si vous etes sur le meme Wi-Fi.
+    echo ===================================================
+    echo.
+    echo Ouverture de l'IDE en mode local simple...
     start index.html
+    
+    :: Empêche le terminal de se fermer pour vous laisser copier le lien
+    pause
 )
 
 :: Suppression du fichier temporaire après lecture
-timeout /t 1 /nobreak >nul
 if exist tunnel.txt del tunnel.txt
