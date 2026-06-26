@@ -1,5 +1,9 @@
 const { WebSocketServer } = require('ws');
 
+// 🟢 AJOUT : Déclaration obligatoire des clients et salons
+const clients = new Map(); 
+const rooms = {};          
+
 // Railway va injecter la variable process.env.PORT
 const port = process.env.PORT || 8080;
 const wss = new WebSocketServer({ port: port });
