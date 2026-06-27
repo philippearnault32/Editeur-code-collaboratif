@@ -1,19 +1,5 @@
 @echo off
-set PORT=8080
-title IDE Collaboratif - Demarrage
-
-echo === Lancement du serveur Backend ===
-start /b node backend.js
-
-echo Attente de l'initialisation du serveur (2s)...
-timeout /t 2 /nobreak > nul
-
-echo === Creation du tunnel public (Localtunnel) ===
-echo Generation de l'URL en cours...
-
-:: Lancement de localtunnel en tâche de fond en redirigeant la sortie vers un fichier temporaire
-start /b "" npx lt --port %PORT% > tunnel.txt 2>&1@echo off
-title Lanceur IDE Collaboratif
+title Script d'Automatisation de l'IDE Collaboratif
 cls
 
 echo ===================================================
@@ -21,60 +7,63 @@ echo    Lancement de l'IDE Collaboratif Synchrone
 echo ===================================================
 echo.
 
-:: 1. Lancement du serveur backend Node dans une nouvelle fenêtre séparée
-echo [1/2] Lancement du serveur Backend Node.js...
+:: 1. Lancement du serveur backend Node.js dans une fenêtre séparée
+echo [1/3] Lancement du serveur Backend Node.js...
 start "Serveur Backend Node" cmd /k "node backend.js"
 
-:: Attente de 2 secondes pour s'assurer que le serveur est bien démarré
+:: Attente de 3 secondes pour s'assurer que le serveur est bien initialisé
 timeout /t 3 /nobreak >nul
 
 echo.
-echo [2/2] Creation du tunnel public (Localtunnel)...
-echo       L'URL va s'afficher ci-dessous d'ici quelques instants.
-echo       Copiez l'URL affichee (ex: https://xxxxx.loca.lt) et ajoutez-la
-echo       au lien de votre navigateur sous la forme :
-echo       http://localhost:8080/?tunnel=xxxxx.loca.lt
-echo.
-echo ===================================================
-echo.
+echo [2/3] Initialisation du tunnel public (Localtunnel)...
+echo       Recuperation automatique du lien en cours...
 
-:: 2. Lancement en direct de localtunnel sans redirection vers un fichier texte
-npx localtunnel --port 8080
+:: 2. Lancement de localtunnel en enregistrant sa sortie dans un fichier temporaire propre
+:: On utilise un nom unique pour éviter les blocages de processus
+set "temp_tunnel_file=%TEMP%\lt_current_url.txt"
+if exist "%temp_tunnel_file%" del "%temp_tunnel_file%"
 
-pause
+:: On lance localtunnel en tâche de fond et on redirige le flux vers notre fichier temporaire
+start /b cmd /c "npx localtunnel --port 8080 > "%temp_tunnel_file%""
 
-:: Attente de la génération du lien
-timeout /t 3 /nobreak > nul
+:: Attente que localtunnel génère l'URL (environ 4 secondes)
+timeout /t 4 /nobreak >nul
 
-:: Extraction et nettoyage de l'URL
-set "TUNNEL_URL="
-for /f "tokens=*" %%i in (tunnel.txt) do (
-    echo %%i | findstr "https://" >nul
-    if not errorlevel 1 (
-        set "TUNNEL_URL=%%i"
+:: Lecture du fichier temporaire pour extraire l'URL
+set "raw_url="
+for /f "tokens=2* delims= " %%A in ('findstr "url" "%temp_tunnel_file%"') do set "raw_url=%%B"
+
+:: Si findstr n'a pas fonctionné selon le formatage, on prend la première ligne valide
+if "%raw_url%"=="" (
+    for /f "usebackq tokens=*" %%A in ("%temp_tunnel_file%") do (
+        set "line=%%A"
+        setlocal enabledelayedexpansion
+        if not "!line:https://=!"=="!line!" set "raw_url=%%A"
+        endlocal
     )
 )
 
-if "%TUNNEL_URL%"=="" (
-    echo [Alerte] Impossible de recuperer automatiquement l'URL du tunnel. Checkez le fichier tunnel.txt.
-    goto :end
+:: Nettoyage de l'URL pour ne garder que le sous-domaine (ex: twelve-walls-rhyme.loca.lt)
+if not "%raw_url%"=="" (
+    set "clean_url=%raw_url:https://=%"
+    set "clean_url=%clean_url:http://=%"
+    
+    echo.
+    echo [Succes] URL publique detectee : !raw_url!
+    echo [3/3] Generation automatique du lien de redirection...
+    
+    :: 3. Ouverture automatique du navigateur par défaut avec l'URL formatée
+    echo       Ouverture de l'adresse : http://localhost:8080/?tunnel=!clean_url!
+    start http://localhost:8080/?tunnel=!clean_url!
+) else (
+    echo.
+    echo [Alerte] Impossible de lire l'URL automatiquement.
+    echo Vérifiez que localtunnel est installé et fonctionnel en tapant : npx localtunnel --port 8080
 )
 
-:: Nettoyage de la phrase "your url is: "
-set "TUNNEL_URL=%TUNNEL_URL:your url is =%"
-set "TUNNEL_URL=%TUNNEL_URL: =%"
-set "TUNNEL_URL=%TUNNEL_URL::=%"
-
-:: Copie magique dans le presse-papiers Windows
-echo | set /p="%TUNNEL_URL%" | clip
-
-echo =======================================================
-echo  🔗 URL : %TUNNEL_URL%
-echo  📋 Le lien a ete COPIE automatiquement ! (Ctrl+V)
-echo =======================================================
-
-:end
-:: Supprime le fichier temporaire
-if exist tunnel.txt del tunnel.txt
-:: Garde la fenêtre ouverte pour lire l'URL
-cmd /k
+echo.
+echo ===================================================
+echo L'environnement est prêt. Laissez cette fenêtre ouverte.
+echo ===================================================
+echo.
+pause
