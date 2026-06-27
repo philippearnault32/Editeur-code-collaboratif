@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <title>IDE Collaboratif Synchrone Pro</title>
     <style>
-        /* Variables globales pour Thème Sombre / Clair */
         :root {
             --bg-main: #1e1e1e;
             --bg-topbar: #2d2d2d;
@@ -37,14 +36,12 @@
         #top-bar { height: 45px; background: var(--bg-topbar); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-bottom: 1px solid var(--border-color); z-index: 100; transition: background 0.2s; }
         #main-container { display: flex; flex: 1; height: calc(100vh - 45px); position: relative; }
         
-        /* Explorateur & Recherche */
         #sidebar { width: 280px; background: var(--bg-sidebar); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; overflow: hidden; z-index: 50; transition: background 0.2s; }
         .sidebar-header { padding: 10px; font-weight: bold; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center; }
         .search-box-container { padding: 0 10px 10px 10px; border-bottom: 1px solid var(--border-color); }
         .search-input { width: 100%; background: var(--bg-input); border: 1px solid var(--border-color); color: var(--text-main); padding: 6px; border-radius: 4px; box-sizing: border-box; font-size: 12px; }
         .search-input:focus { border-color: #007acc; outline: none; }
 
-        /* Arborescence Graphique */
         .tree-root { list-style: none; padding-left: 10px; margin: 0; overflow-y: auto; flex: 1; padding-top: 10px; }
         .tree-folder { cursor: pointer; padding: 4px 5px; display: flex; align-items: center; font-size: 13px; font-weight: bold; color: #e8a838; user-select: none; justify-content: space-between; }
         .tree-folder:hover { background: var(--bg-hover); }
@@ -55,8 +52,7 @@
         .folder-children { list-style: none; padding-left: 15px; margin: 0; }
         .folder-children.collapsed { display: none; }
         
-        /* Zone Éditeur */
-        #editor-container { flex: 1; position: relative; height: 100%; width: 100%; display: flex; flex-direction: column; }
+        #editor-container { flex: 1; position: relative; height: 100%; width: 100%; display: flex; flex-direction: column; overflow: hidden; }
         .btn { border: none; padding: 6px 12px; border-radius: 3px; cursor: pointer; font-size: 13px; color: white; }
         .btn-menu { background: #0e639c; color: white; border: none; padding: 6px 12px; border-radius: 3px; cursor: pointer; font-size: 13px; font-weight: bold; }
         .btn-menu:hover { background: #1177bb; }
@@ -65,11 +61,9 @@
         #status { font-size: 12px; color: var(--text-main); background: var(--bg-tab-inactive); padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border-color); }
         #session-badge { background: #cf6a15; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; display: none; font-weight: bold; }
 
-        /* Utilisateurs Connectés */
         #users-list { display: flex; gap: 5px; align-items: center; font-size: 11px; margin-right: 10px; }
         .user-tag { padding: 2px 6px; border-radius: 3px; color: #fff; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
 
-        /* Curseurs Texte Distants Plus Visibles */
         .remote-cursor { width: 3px !important; background: currentColor; box-shadow: 0 0 6px currentColor; }
         .remote-cursor-tooltip {
             position: absolute; color: white !important; font-size: 11px; font-weight: bold; padding: 2px 6px;
@@ -77,69 +71,27 @@
             pointer-events: none; z-index: 100; box-shadow: 0 2px 5px rgba(0,0,0,0.4);
         }
 
-        /* Souris Volantes Vectorielles en Vrai Mode Curseur SVG */
-        .fake-mouse-pointer {
-            position: absolute; 
-            pointer-events: none; 
-            z-index: 10000; 
-            transition: top 0.08s ease-out, left 0.08s ease-out; 
-        }
+        .fake-mouse-pointer { position: absolute; pointer-events: none; z-index: 10000; transition: top 0.08s ease-out, left 0.08s ease-out; }
         .fake-mouse-label {
-            position: absolute; 
-            top: 16px; 
-            left: 12px; 
-            color: white !important; 
-            font-size: 11px;
-            font-weight: 600; 
-            padding: 3px 8px; 
-            border-radius: 4px; 
-            white-space: nowrap;
-            box-shadow: 0 3px 8px rgba(0,0,0,0.4);
-            font-family: 'Segoe UI', sans-serif;
+            position: absolute; top: 16px; left: 12px; color: white !important; font-size: 11px;
+            font-weight: 600; padding: 3px 8px; border-radius: 4px; white-space: nowrap;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.4); font-family: 'Segoe UI', sans-serif;
         }
 
-        /* Onglets et Pastilles géolocalisées */
-        #tabs-container { 
-            display: flex; background: var(--bg-sidebar); border-bottom: 1px solid var(--border-color); 
-            height: 35px; overflow-x: auto; align-items: center; padding-left: 5px; gap: 2px;
-        }
-        .tab {
-            display: flex; align-items: center; background: var(--bg-tab-inactive); color: var(--text-muted);
-            padding: 0 12px; height: 100%; border-right: 1px solid var(--border-color); cursor: pointer; user-select: none; font-size: 13px;
-        }
+        #tabs-container { display: flex; background: var(--bg-sidebar); border-bottom: 1px solid var(--border-color); height: 35px; overflow-x: auto; align-items: center; padding-left: 5px; gap: 2px; }
+        .tab { display: flex; align-items: center; background: var(--bg-tab-inactive); color: var(--text-muted); padding: 0 12px; height: 100%; border-right: 1px solid var(--border-color); cursor: pointer; user-select: none; font-size: 13px; }
         .tab.active { background: var(--bg-tab-active); color: var(--text-main); border-top: 2px solid #007acc; }
         .tab .close-tab { margin-left: 8px; color: var(--text-muted); cursor: pointer; font-size: 11px; }
         .tab .close-tab:hover { color: #ff4545; }
 
         .user-badge { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-left: 6px; vertical-align: middle; box-shadow: 0 0 4px rgba(0,0,0,0.4); }
 
-        /* Indicateurs de Position Haut/Bas */
-        .pos-indicator {
-            position: absolute; 
-            right: 90px; 
-            z-index: 9999; 
-            display: none; 
-            padding: 5px 12px; 
-            border-radius: 20px; 
-            color: white; 
-            font-size: 11px; 
-            font-weight: bold; 
-            opacity: 0.9;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.5); 
-            pointer-events: none; 
-            align-items: center; 
-            gap: 5px;
-        }
+        .pos-indicator { position: absolute; right: 90px; z-index: 9999; display: none; padding: 5px 12px; border-radius: 20px; color: white; font-size: 11px; font-weight: bold; opacity: 0.9; box-shadow: 0 2px 8px rgba(0,0,0,0.5); pointer-events: none; align-items: center; gap: 5px; }
         #indicator-up { top: 40px; }
         #indicator-down { bottom: 10px; }
 
-        /* Style pour le Menu Déroulant Affichage */
         .menu-dropdown { position: relative; display: inline-block; }
-        .dropdown-content {
-            display: none; position: absolute; background-color: #2d2d2d;
-            min-width: 200px; box-shadow: 0px 8px 16px rgba(0,0,0,0.5);
-            padding: 8px; z-index: 200; border: 1px solid #3c3c3c; border-radius: 4px;
-        }
+        .dropdown-content { display: none; position: absolute; background-color: #2d2d2d; min-width: 200px; box-shadow: 0px 8px 16px rgba(0,0,0,0.5); padding: 8px; z-index: 200; border: 1px solid #3c3c3c; border-radius: 4px; }
         .menu-dropdown:hover .dropdown-content { display: block; }
         .dropdown-content label { display: flex; align-items: center; gap: 8px; padding: 6px; cursor: pointer; font-size: 13px; color: #ccc; }
         .dropdown-content label:hover { background: #3c3c3c; color: white; }
@@ -202,10 +154,10 @@
                 <div style="background: var(--bg-sidebar); padding: 5px 10px; font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: bold; border-bottom: 1px solid var(--border-color);">
                     Terminal Intégré (Partagé)
                 </div>
-                <div id="terminal-output" style="flex: 1; padding: 10px; overflow-y: auto; color: #00ff00; font-size: 13px; white-space: pre-wrap;">[Système] Prêt. Entrez une commande ci-dessous...</div>
+                <div id="terminal-output" style="flex: 1; padding: 10px; overflow-y: auto; color: #00ff00; font-size: 13px; white-space: pre-wrap;">[Système] Prêt. Entrez une commande...</div>
                 <div style="display: flex; background: rgba(0,0,0,0.1); padding: 5px; align-items: center;">
                     <span style="color: #00ff00; padding: 0 5px; font-weight: bold;">$</span>
-                    <input type="text" id="terminal-input" style="flex: 1; background: transparent; border: none; color: var(--text-main); outline: none; font-family: 'Consolas', monospace; font-size: 13px;" placeholder="Taper une commande système (ex: npm install, dir, python --version)..." onkeydown="handleTerminalSubmit(event)">
+                    <input type="text" id="terminal-input" style="flex: 1; background: transparent; border: none; color: var(--text-main); outline: none; font-family: 'Consolas', monospace; font-size: 13px;" placeholder="Taper une commande système..." onkeydown="handleTerminalSubmit(event)">
                 </div>
             </div>
         </div>
@@ -217,7 +169,7 @@
         let editor;
         let ws;
         let myId;
-        let myPseudo = "Développeur"; // Pseudo par défaut (demande prompt supprimée)
+        let myPseudo = "Développeur"; 
         let remoteDecorations = [];
         let remoteSelections = [];
         let isUpdatingFromServer = false;
@@ -239,17 +191,16 @@
             'json': 'json'
         };
 
-        // Fonction pour afficher/masquer les composants via le menu Affichage
         function toggleComponent(id) {
             const component = document.getElementById(id);
             if (component) {
                 if (component.style.display === "none") {
-                    component.style.display = (id === "sidebar") ? "flex" : "flex";
+                    component.style.display = "flex";
                 } else {
                     component.style.display = "none";
                 }
             }
-            if (editor) editor.layout(); // Force l'éditeur Monaco à recalculer sa taille
+            if (editor) editor.layout(); 
         }
 
         function toggleTheme(theme) {
@@ -288,7 +239,7 @@
         function setupWebSocket() {
             const urlParams = new URLSearchParams(window.location.search);
             let serverURL = urlParams.get('tunnel');
-            let wsAddress = "ws://localhost:8080"; // Par défaut se connecte en local sans prompt automatique
+            let wsAddress = "ws://localhost:8080"; 
 
             if (serverURL) {
                 wsAddress = `wss://${serverURL}`;
