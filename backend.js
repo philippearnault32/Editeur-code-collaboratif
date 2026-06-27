@@ -3,15 +3,15 @@ const fs = require('fs');
 const path = require('path');
 const { WebSocketServer } = require('ws');
 const { exec } = require('child_process');
+const localtunnel = require('localtunnel'); // Module natif officiel
 
 const port = process.env.PORT || 8080;
 
 // 1. CRÉATION DU SERVEUR HTTP POUR SERVIR LE FICHIER INDEX.HTML
 const server = http.createServer((req, res) => {
-    // On nettoie l'URL pour ignorer les paramètres de requêtes comme (?tunnel=...)
     const urlPath = req.url.split('?')[0];
 
-    // Si on demande la racine, on charge index.html
+    // Si on demande la racine ou index.html, on sert le fichier de l'IDE
     if (urlPath === '/' || urlPath === '/index.html') {
         const filePath = path.join(__dirname, 'index.html');
         
@@ -25,7 +25,7 @@ const server = http.createServer((req, res) => {
             res.end(content);
         });
     } else {
-        // Optionnel : Permet de charger d'autres fichiers si vous en ajoutez plus tard (css, js séparés)
+        // Permet de charger d'autres fichiers si vous en ajoutez (ex: styles.css ou script.js déportés)
         const filePath = path.join(__dirname, urlPath);
         fs.readFile(filePath, (err, content) => {
             if (err) {
@@ -42,42 +42,36 @@ const server = http.createServer((req, res) => {
 // 2. ATTACHER LE SERVEUR WEBSOCKET AU SERVEUR HTTP
 const wss = new WebSocketServer({ server: server });
 
-// Démarrage du serveur global sur le port 8080
-server.listen(port, () => {
+// 3. DÉMARRAGE DU SERVEUR GLOBAL PUIS DU TUNNEL LOCALTUNNEL
+server.listen(port, async () => {
     console.log(`=== SERVEUR EN LIGNE SUR LE PORT ${port} ===`);
-});
+    console.log("[Tunnel] Création du partage public sécurisé...");
 
-// --- AUTOMATISATION DU TUNNEL ET DU NAVIGATEUR ---
-// Lancement de localtunnel en tâche de fond
-const localtunnelProcess = exec(`npx localtunnel --port ${port}`, (error, stdout, stderr) => {
-    if (error) {
-        console.error(`[Localtunnel Erreur] : ${error.message}`);
-    }
-});
-
-// Capture de l'URL publique générée
-localtunnelProcess.stdout.on('data', (data) => {
-    const output = data.toString();
-    if (output.includes('url is:')) {
-        const rawUrl = output.split('url is:')[1].trim();
-        console.log(`[Succès] URL publique détectée : ${rawUrl}`);
+    try {
+        // Ouverture programmée du tunnel directement couplé à notre serveur HTTP actif
+        const tunnel = await localtunnel({ port: port });
+        const rawUrl = tunnel.url;
         
-        // Extraction du sous-domaine
+        console.log(`\n===================================================`);
+        console.log(`[SUCCÈS] Tunnel actif !`);
+        console.log(`Votre lien (Hôte) : http://localhost:${port}/?tunnel=${rawUrl.replace('https://', '')}`);
+        console.log(`Lien à envoyer à votre AMI : ${rawUrl}/?tunnel=${rawUrl.replace('https://', '')}`);
+        console.log(`===================================================\n`);
+
+        // Ouverture automatique de votre propre navigateur sur l'IDE configuré
         let cleanUrl = rawUrl.replace('https://', '').replace('http://', '').trim();
-        const targetAddress = `http://localhost:8080/?tunnel=${cleanUrl}`;
-        
-        console.log(`[Navigateur] Ouverture automatique de : ${targetAddress}`);
-        
-        // Ouvre le navigateur par défaut sur l'IDE configuré
-        exec(`start ${targetAddress}`);
+        exec(`start http://localhost:${port}/?tunnel=${cleanUrl}`);
+
+        tunnel.on('close', () => {
+            console.log("[Tunnel] Le partage public a été arrêté.");
+        });
+
+    } catch (err) {
+        console.error(`[Erreur Tunnel] Impossible de créer le lien de partage : ${err.message}`);
     }
 });
 
-localtunnelProcess.stderr.on('data', (data) => {
-    console.error(`[Localtunnel Statut] : ${data.toString().trim()}`);
-});
-// -------------------------------------------------
-
+// 4. LOGIQUE COLLABORATIVE ORIGINALE COMPLÈTE
 const clients = new Map();
 const rooms = {};
 
